@@ -69,10 +69,6 @@ The system includes several key components:
    - Open `settings.ini` and update the following paths:
      - `CARLA_PATH_EGG`: Path to the CARLA egg file
      - `CARLA_PATH_WHL`: Path to the CARLA wheel file
-   - Adjust sensor and system settings as needed:
-     - Camera resolutions and FOV
-     - LIDAR and Radar parameters
-     - Control sensitivity
 
 3. **Setup Python Environment**
    - Run the setup script:
@@ -113,12 +109,8 @@ The main entry point for student development is the `get_assistant_override()` m
    - Use radar data for object tracking
    - Incorporate IMU data for vehicle dynamics
 
-2. **Implement Safety Logic**
-   - Emergency braking for obstacles
-   - Collision avoidance
-   - Speed control in hazardous conditions
 
-3. **Control Override Logic**
+2. **Control Override Logic**
    - Determine when to override human control
    - Implement smooth control transitions
    - Ensure safety while respecting driver intent
