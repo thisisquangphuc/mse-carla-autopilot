@@ -8,7 +8,7 @@ for %%I in ("%SCRIPT_DIR%..") do set "PROJECT_DIR=%%~fI"
 :: -- Files
 set "INI_FILE=%SCRIPT_DIR%settings.ini"
 set "REQ_FILE=%SCRIPT_DIR%requirements.txt"
-set "VENV_DIR=%PROJECT_DIR%\venv"
+set "VENV_DIR=%PROJECT_DIR%\carla_agent_das\venv"
 
 :: -- Variables
 set "CARLA_PATH="

@@ -3,25 +3,15 @@
 """
 Driver Assistant Agent for CARLA - Lippstadt Summer School 2025
 
-This agent serves as the base for developing a Driver Assistant System (DAS).
-Students will primarily modify the `get_assistant_override` method to implement
-features like emergency braking, camera assist, etc.
+This script provides a unified environment for students to develop their driver assistant system.
+In standalone mode, the script loads configuration settings, creates a CARLA client/world, spawns a vehicle,
+spawns sensors, creates a HUD, and reads keyboard input.
 
-Modes of Operation:
-- Standalone Mode: Runs independently using `local_mode.py`. Spawns its own
-                   vehicle, sensors, and uses keyboard input for human control.
-                   Useful for development and testing.
-
-- Evaluation Mode: Integrated into a testing framework. Sensor data and human
-                   control are injected externally. The agent's core logic
-                   (`run_step`) remains the same.
+In evaluation mode, the testing framework injects sensor data and human control, while the agent’s API remains the same.
+Students can implement their assistant override logic in get_assistant_override() without worrying about the underlying integration.
 """
 
-# -------------------------
-# Imports
-# -------------------------
-
-import carla #type: ignore
+import carla
 from modules.controls import KeyboardControl
 from modules.hud import HumanInterface
 from modules.agent_utils import AutonomousAgent, Track
@@ -36,15 +26,15 @@ with contextlib.redirect_stdout(None):
 # Entry Point (DO NOT ALTER!)
 # -------------------------
 def get_entry_point():
-    """Returns the main agent class name."""
     return 'DriverAssistantAgent'
+
 # -------------------------
 # Main Agent Class
 # -------------------------
 class DriverAssistantAgent(AutonomousAgent):
     """
-    The main agent class. It processes sensor data, handles human input (keyboard/steering wheel),
-    allows for assistant overrides, and outputs final vehicle control commands.
+    Main agent class that processes sensor data and generates vehicle control commands.
+    In standalone mode the agent spawns its own sensors; in evaluation mode these are provided externally.
     """
     def setup(self, path_to_conf_file, standalone_mode=False):
         """
@@ -67,17 +57,6 @@ class DriverAssistantAgent(AutonomousAgent):
         self._clock = pygame.time.Clock()
         self._hic = HumanInterface(self.standalone_mode, self.camera_width, self.camera_height, self._side_scale, self._left_mirror, self._right_mirror)
         self._controller = KeyboardControl(path_to_conf_file)
-        
-        #----------------------------------------------------------
-        # Initialize any other variables needed for your agent here
-        # --- Agent Setup (HERE) ---
-        #----------------------------------------------------------
-        # (CODE TO BE ADDED BY STUDENTS) [Optional]
-        # ----------------------------------------------------------
-
-
-
-        # --- Sensor Spawning (Local Mode Only) ---
         if self.standalone_mode:
             self._sensor_objects = {}
             self._spawn_sensors()
@@ -135,15 +114,8 @@ class DriverAssistantAgent(AutonomousAgent):
 
     def get_sensor_data(self):
         """
-        Retrieves the latest data from all managed sensors.
-        This is called internally in `run_step` when in standalone mode.
-        In evaluation mode, the framework provides this data.
-
-        Returns:
-            A dictionary where keys are sensor IDs and values are tuples:
-            (sensor_actor, sensor_data). The sensor_actor might be None
-            if the manager processes the data directly.
-            Example: {'Center': (None, pygame_surface), 'LIDAR': (None, point_cloud)}
+        Gather the latest sensor outputs into a dictionary.
+        In standalone mode, this queries the spawned sensors.
         """
         sensor_data = {}
         for sensor_id, sensor_obj in self._sensor_objects.items():
@@ -155,83 +127,29 @@ class DriverAssistantAgent(AutonomousAgent):
                     sensor_data[sensor_id] = (None, sensor_obj.latest_data)
         return sensor_data
 
-    def get_human_control(self, timestamp):
+    def get_human_control(self, input_data, timestamp):
         """
         Retrieve human control commands.
         """
         time_diff = timestamp - self._prev_timestamp
         return self._controller.parse_events(time_diff)
 
-    # ==============================================================================
-    # -- STUDENT IMPLEMENTATION AREA START -----------------------------------------
-    # ==============================================================================
-
     def get_assistant_override(self, input_data):
         """
-        *** THIS IS THE MAIN FUNCTION STUDENTS NEED TO MODIFY ***
-
-        Process sensor data and decide if the Driver Assistant System (DAS)
-        should override the human driver's input.
-
-        Args:
-            input_data (dict): A dictionary containing the latest sensor data,
-                               structured as returned by `get_sensor_data`.
-                               Example keys: 'Center', 'Left', 'Right' (pygame surfaces),
-                               'LIDAR' (carla.LidarMeasurement), 'RADAR', 'IMU', etc.
-                               Access data like: `image = input_data.get('Center')[1]`
-                               or `lidar_data = input_data.get('LIDAR')[1]`
-                               Check if a key exists before accessing it!
-
-        Returns:
-            A carla.VehicleControl object.
-            - Set fields (e.g., `brake=1.0`) to override the corresponding
-              human input.
-            - Leave fields at their default values (0.0 for steer, throttle, brake;
-              False for hand_brake, reverse) if no override is intended for that
-              specific control.
-            - The `merge_control` function will prioritize non-default values
-              from this object over the human input.
+        Process sensor data and decide if an assistant override is needed.
+        Students should implement override logic (e.g., emergency braking) here.
+        By default, no override is applied.
         """
-        # --- Student Implementation Example ---
-        override_control = carla.VehicleControl() # Start with a default (no override) control object
-
-        # --- Example 1: Simple Emergency Braking based on LIDAR ---
-        lidar_measurement = input_data.get('LIDAR')
-        if lidar_measurement:
-            lidar_data = lidar_measurement[1] # Get the actual data
-            min_distance = float('inf')
-            # Process lidar points (this is a basic example, needs refinement)
-            for location in lidar_data:
-                # Calculate distance (ignoring z for simplicity here)
-                distance = (location.x**2 + location.y**2)**0.5
-                # Check if the point is roughly in front
-                if distance < min_distance and abs(location.y) < 1.0 and location.x > 0:
-                     min_distance = distance
-
-            # If an obstacle is detected very close in front
-            if min_distance < 5.0: # Threshold distance in meters
-                logging.warning("DAS: Obstacle detected close ahead (%.2f m)! Applying brake override.", min_distance)
-                override_control.brake = 1.0  # Override: Full brake
-                override_control.throttle = 0.0 # Override: Ensure no throttle
-        
-        
+        override_control = carla.VehicleControl()
+        # Example placeholder logic:
+        # if obstacle_detected(input_data.get('LIDAR')):
+        #     override_control.brake = 1.0
         return override_control
-    # ==============================================================================
-    # -- STUDENT IMPLEMENTATION AREA END -------------------------------------------
-    # ==============================================================================
 
     def merge_control(self, human_control, assistant_override):
         """
-        Merges the human control input with the assistant's override commands.
-        The assistant override takes precedence for steering, throttle, and brake
-        if the override value is non-zero (or specifically set).
-
-        Args:
-            human_control: carla.VehicleControl from human input.
-            assistant_override: carla.VehicleControl from `get_assistant_override`.
-
-        Returns:
-            The final carla.VehicleControl to be applied to the vehicle.
+        Merge human input with any assistant override commands.
+        Override commands (if non-zero) take priority over human input.
         """
         final_control = carla.VehicleControl()
         final_control.steer = assistant_override.steer if abs(assistant_override.steer) > 0.0 else human_control.steer
@@ -257,7 +175,7 @@ class DriverAssistantAgent(AutonomousAgent):
             if input_data is None:
                 input_data = self.get_sensor_data()
         self._hic.run_interface(input_data)
-        human_control = self.get_human_control(timestamp)
+        human_control = self.get_human_control(input_data, timestamp)
         assistant_override = self.get_assistant_override(input_data)
         final_control = self.merge_control(human_control, assistant_override)
         logging.info("Timestamp: %f", timestamp)

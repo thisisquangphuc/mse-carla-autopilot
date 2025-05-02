@@ -1,6 +1,6 @@
 
-import numpy as np
-import pygame
+import numpy as np #type: ignore
+import pygame #type: ignore
 from os import environ
 environ["PYGAME_HIDE_SUPPORT_PROMPT"] = "hide"
 

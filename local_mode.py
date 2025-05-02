@@ -3,11 +3,11 @@
 # -------------------------
 import configparser
 import logging
-import carla
+import carla #type: ignore
 import contextlib
 with contextlib.redirect_stdout(None):
-    import pygame
-from carla_agent_das.src.agent import DriverAssistantAgent
+    import pygame #type: ignore
+from agent import DriverAssistantAgent
 
 
 def load_config(config_file='settings.ini'):

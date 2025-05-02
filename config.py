@@ -25,7 +25,7 @@ try:
 except IndexError:
     pass
 
-import carla
+import carla #type: ignore
 
 import argparse
 import datetime

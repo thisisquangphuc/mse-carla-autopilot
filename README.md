@@ -113,16 +113,6 @@ The main entry point for student development is the `get_assistant_override()` m
    - Use radar data for object tracking
    - Incorporate IMU data for vehicle dynamics
 
-2. **Implement Safety Logic**
-   - Emergency braking for obstacles
-   - Collision avoidance
-   - Speed control in hazardous conditions
-
-3. **Control Override Logic**
-   - Determine when to override human control
-   - Implement smooth control transitions
-   - Ensure safety while respecting driver intent
-
 ### Example Implementation (pseudo code)
 
 ```python

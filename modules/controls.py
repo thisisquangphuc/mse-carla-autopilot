@@ -1,8 +1,8 @@
 import sys
 import carla #type: ignore
-import pygame
+import pygame #type: ignore
 from configparser import ConfigParser
-from pygame.locals import K_DOWN, K_LEFT, K_RIGHT, K_SPACE, K_UP, K_a, K_d, K_s, K_w, K_q
+from pygame.locals import K_DOWN, K_LEFT, K_RIGHT, K_SPACE, K_UP, K_a, K_d, K_s, K_w, K_q #type: ignore
 
 class KeyboardControl(object):
     """

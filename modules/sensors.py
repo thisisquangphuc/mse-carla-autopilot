@@ -1,9 +1,9 @@
 # -------------------------
 # Sensor Managers
 # -------------------------
-import carla
-from   carla import ColorConverter as cc
-import numpy as np
+import carla #type: ignore
+from   carla import ColorConverter as cc #type: ignore
+import numpy as np #type: ignore
 import logging
 import weakref
 import math
@@ -18,9 +18,9 @@ def get_sensor_layout(camera_width, camera_height, side_scale):
     sensors = [
             {'type': 'sensor.camera.rgb', 'x': 0.7, 'y': 0.0, 'z': 1.60, 'roll': 0.0, 'pitch': 0.0, 'yaw': 0.0,
              'width': camera_width, 'height': camera_height, 'fov': 100, 'id': 'Center'},
-            {'type': 'sensor.camera.rgb', 'x': 0.7, 'y': -0.4, 'z': 1.60, 'roll': 0.0, 'pitch': 0.0, 'yaw': -45.0,
+            {'type': 'sensor.camera.rgb', 'x': 0.7, 'y': -1, 'z': 1.0, 'roll': 0.0, 'pitch': 0.0, 'yaw': -135.0,
              'width': int(camera_width * side_scale), 'height': int(camera_height * side_scale), 'fov': 100, 'id': 'Left'},
-            {'type': 'sensor.camera.rgb', 'x': 0.7, 'y': 0.4, 'z': 1.60, 'roll': 0.0, 'pitch': 0.0, 'yaw': 45.0,
+            {'type': 'sensor.camera.rgb', 'x': 0.7, 'y': 1, 'z': 1.0, 'roll': 0.0, 'pitch': 0.0, 'yaw': 135.0,
              'width': int(camera_width * side_scale), 'height': int(camera_height * side_scale), 'fov': 100, 'id': 'Right'},
             {'type': 'sensor.lidar.ray_cast', 'x': 0.7, 'y': -0.4, 'z': 1.60, 'roll': 0.0, 'pitch': 0.0,
              'yaw': -45.0, 'id': 'LIDAR'},
@@ -67,7 +67,8 @@ class CameraManager(object):
             array = array[:, :, :3][:, :, ::-1]
             self.latest_image = array
             if self.recording:
-                image.save_to_disk('_out/%08d' % image.frame)
+                image.save_to_disk('_out/%08d' % image.frame) # Save images to disk (Careful with large datasets and capute sequence!)
+
         except Exception as e:
             logging.warning("Error parsing camera image: %s", e)
 
