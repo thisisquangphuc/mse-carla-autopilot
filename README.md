@@ -69,10 +69,6 @@ The system includes several key components:
    - Open `settings.ini` and update the following paths:
      - `CARLA_PATH_EGG`: Path to the CARLA egg file
      - `CARLA_PATH_WHL`: Path to the CARLA wheel file
-   - Adjust sensor and system settings as needed:
-     - Camera resolutions and FOV
-     - LIDAR and Radar parameters
-     - Control sensitivity
 
 3. **Setup Python Environment**
    - Run the setup script:
