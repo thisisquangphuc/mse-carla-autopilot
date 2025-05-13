@@ -21,6 +21,12 @@ import logging
 import contextlib
 with contextlib.redirect_stdout(None):
     import pygame
+import tensorflow as tf
+import keras
+import numpy as np
+from PIL import Image
+# from tensorflow.keras.preprocessing import image
+logger = logging.getLogger(__name__)
 
 # -------------------------
 # Entry Point (DO NOT ALTER!)
@@ -48,8 +54,8 @@ class DriverAssistantAgent(AutonomousAgent):
         self.track = Track.SENSORS  
         self.agent_engaged = False
         self.standalone_mode = standalone_mode
-        self.camera_width = 1280
-        self.camera_height = 720
+        self.camera_width = 800
+        self.camera_height = 600
         self._side_scale = 0.3
         self._left_mirror = True
         self._right_mirror = True
@@ -60,6 +66,9 @@ class DriverAssistantAgent(AutonomousAgent):
         if self.standalone_mode:
             self._sensor_objects = {}
             self._spawn_sensors()
+        self.model = keras.models.load_model('model/pedestrian_model.keras')
+        self.pre_status=0
+        self.cur_status=0
         logging.info("DriverAssistantAgent setup complete. Standalone mode: %s", self.standalone_mode)
 
     def sensors(self):
@@ -127,6 +136,27 @@ class DriverAssistantAgent(AutonomousAgent):
                     sensor_data[sensor_id] = (None, sensor_obj.latest_data)
         return sensor_data
 
+    def get_front_image_frame(self):
+        """
+        """
+        sensor_obj = self._sensor_objects['Center']
+        if sensor_obj.latest_image is not None:
+            sensor_obj.set_recording()
+        
+    def get_left_image_frame(self):
+        """
+        """
+        sensor_obj = self._sensor_objects['Left']
+        if sensor_obj.latest_image is not None:
+            sensor_obj.set_recording()
+        
+    def get_right_image_frame(self):
+        """
+        """    
+        sensor_obj = self._sensor_objects['Right']
+        if sensor_obj.latest_image is not None:
+            sensor_obj.set_recording()
+
     def get_human_control(self, input_data, timestamp):
         """
         Retrieve human control commands.
@@ -144,6 +174,28 @@ class DriverAssistantAgent(AutonomousAgent):
         # Example placeholder logic:
         # if obstacle_detected(input_data.get('LIDAR')):
         #     override_control.brake = 1.0
+        sensor_obj = self._sensor_objects['Center']
+        if sensor_obj.latest_image is not None:
+            image = Image.fromarray(sensor_obj.latest_image)
+            image = image.resize((224, 224))
+            array = np.array(image) / 255.0 # Normalize to [0, 1]
+            # array = cv2.resize(sensor_obj.latest_image, (224, 224), interpolation=cv2.INTER_AREA)
+            # array = array / 255.0  # Normalize to [0, 1]
+            # Add batch dimension
+            input_tensor = np.expand_dims(array, axis=0)  # Now (1, 224, 224, 3)
+            prediction = self.model.predict(input_tensor)
+            if prediction[0][0] > 0.5:
+            #     self.cur_status=1
+            # else:
+            #     self.cur_status=0
+
+            # if self.cur_status != self.pre_status:
+            #     self.pre_status = self.cur_status 
+                # self._hic.run_interface(input_data, True)
+                self._hic.run_interface_w_alert(input_data)
+            # else:
+                # self._hic.run_interface(input_data, False)
+
         return override_control
 
     def merge_control(self, human_control, assistant_override):
@@ -171,10 +223,17 @@ class DriverAssistantAgent(AutonomousAgent):
         self._clock.tick_busy_loop(120)
         self.agent_engaged = True
         pygame.event.pump()
+
+        for event in pygame.event.get():
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_p:
+                self.get_front_image_frame()
+                break
+
         if self.standalone_mode:
             if input_data is None:
                 input_data = self.get_sensor_data()
         self._hic.run_interface(input_data)
+        # self._hic.run_interface_w_alert(input_data)
         human_control = self.get_human_control(input_data, timestamp)
         assistant_override = self.get_assistant_override(input_data)
         final_control = self.merge_control(human_control, assistant_override)

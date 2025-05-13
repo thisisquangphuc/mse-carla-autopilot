@@ -7,6 +7,7 @@ import numpy as np #type: ignore
 import logging
 import weakref
 import math
+logger = logging.getLogger(__name__)
 
 
 # -------------------------
@@ -54,6 +55,9 @@ class CameraManager(object):
         weak_self = weakref.ref(self)
         self.sensor.listen(lambda image: CameraManager._parse_image(weak_self, image))
 
+    def set_recording(self, on=True):
+        self.recording = on
+
     @staticmethod
     def _parse_image(weak_self, image):
         self = weak_self()
@@ -67,7 +71,8 @@ class CameraManager(object):
             array = array[:, :, :3][:, :, ::-1]
             self.latest_image = array
             if self.recording:
-                image.save_to_disk('_out/%08d' % image.frame) # Save images to disk (Careful with large datasets and capute sequence!)
+                image.save_to_disk('no_pedestrian/%08d.jpg' % image.frame) # Save images to disk (Careful with large datasets and capute sequence!)
+                self.recording = False
 
         except Exception as e:
             logging.warning("Error parsing camera image: %s", e)
