@@ -191,10 +191,11 @@ class DriverAssistantAgent(AutonomousAgent):
 
             # if self.cur_status != self.pre_status:
             #     self.pre_status = self.cur_status 
-                # self._hic.run_interface(input_data, True)
-                self._hic.run_interface_w_alert(input_data)
-            # else:
-                # self._hic.run_interface(input_data, False)
+                self._hic.run_interface(input_data, True)
+                # override_control.brake = 1.0
+                # self._hic.run_interface_w_alert(input_data)
+            else:
+                self._hic.run_interface(input_data, False)
 
         return override_control
 
@@ -232,7 +233,7 @@ class DriverAssistantAgent(AutonomousAgent):
         if self.standalone_mode:
             if input_data is None:
                 input_data = self.get_sensor_data()
-        self._hic.run_interface(input_data)
+        # self._hic.run_interface(input_data)
         # self._hic.run_interface_w_alert(input_data)
         human_control = self.get_human_control(input_data, timestamp)
         assistant_override = self.get_assistant_override(input_data)
