@@ -111,7 +111,11 @@ class HumanInterface(object):
 
     def draw_alert(self, message, color=(255, 0, 0)):
         text_surface = self._font.render(message, True, color)
-        self._surface.blit(text_surface, (300, 550))
+        self._surface.blit(text_surface, (self._width/3, self._height-50))
+        # get screen solution and scale it in the middle
+        # Detect signs and take control (speed)
+        # Traffic light detection
+
     
     def _quit(self):
         pygame.quit()
