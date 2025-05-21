@@ -54,8 +54,8 @@ class DriverAssistantAgent(AutonomousAgent):
         self.track = Track.SENSORS  
         self.agent_engaged = False
         self.standalone_mode = standalone_mode
-        self.camera_width = 800
-        self.camera_height = 600
+        self.camera_width = 3840/2
+        self.camera_height = 1080/2
         self._side_scale = 0.3
         self._left_mirror = True
         self._right_mirror = True
@@ -67,8 +67,6 @@ class DriverAssistantAgent(AutonomousAgent):
             self._sensor_objects = {}
             self._spawn_sensors()
         self.model = keras.models.load_model('model/pedestrian_model.keras')
-        self.pre_status=0
-        self.cur_status=0
         logging.info("DriverAssistantAgent setup complete. Standalone mode: %s", self.standalone_mode)
 
     def sensors(self):
@@ -174,26 +172,30 @@ class DriverAssistantAgent(AutonomousAgent):
         # Example placeholder logic:
         # if obstacle_detected(input_data.get('LIDAR')):
         #     override_control.brake = 1.0
-        sensor_obj = self._sensor_objects['Center']
-        if sensor_obj.latest_image is not None:
-            image = Image.fromarray(sensor_obj.latest_image)
+        sensor_latest_image = input_data.get('Center') # get front camera image
+        sensor_latest_data = input_data.get('LIDAR') # get LIDAR data point
+        if sensor_latest_data[1] is not None:
+            sensor_lidar_point = sensor_latest_data[1]
+
+        if sensor_lidar_point is not None:
+            front_lidar_point = sensor_lidar_point[(sensor_lidar_point[:, 0] > 0)]
+            distances = np.sqrt(front_lidar_point[:, 0]**2 + front_lidar_point[:, 1]**2 + front_lidar_point[:, 2]**2)
+            nearby_points = front_lidar_point[distances < 3.0]
+
+        if sensor_latest_image[1] is not None:
+            image = Image.fromarray(sensor_latest_image[1])
             image = image.resize((224, 224))
             array = np.array(image) / 255.0 # Normalize to [0, 1]
-            # array = cv2.resize(sensor_obj.latest_image, (224, 224), interpolation=cv2.INTER_AREA)
-            # array = array / 255.0  # Normalize to [0, 1]
-            # Add batch dimension
             input_tensor = np.expand_dims(array, axis=0)  # Now (1, 224, 224, 3)
             prediction = self.model.predict(input_tensor)
-            if prediction[0][0] > 0.5:
-            #     self.cur_status=1
-            # else:
-            #     self.cur_status=0
 
-            # if self.cur_status != self.pre_status:
-            #     self.pre_status = self.cur_status 
+            if prediction[0][0] > 0.5:
                 self._hic.run_interface(input_data, True)
-                # override_control.brake = 1.0
-                # self._hic.run_interface_w_alert(input_data)
+                if len(nearby_points) > 0:
+                    override_control.brake = 1.0
+                    override_control.hand_brake = True
+                    override_control.throttle = 0.0
+                    print('Pedestrian detected! Braking.')
             else:
                 self._hic.run_interface(input_data, False)
 
