@@ -66,7 +66,8 @@ class DriverAssistantAgent(AutonomousAgent):
         if self.standalone_mode:
             self._sensor_objects = {}
             self._spawn_sensors()
-        self.model = keras.models.load_model('model/pedestrian_model.keras')
+        self.pedestrian_model = keras.models.load_model('model/pedestrian_model_May12.keras')
+        self.sign_model = keras.models.load_model('model/resnet50_sign.keras')
         logging.info("DriverAssistantAgent setup complete. Standalone mode: %s", self.standalone_mode)
 
     def sensors(self):
@@ -178,24 +179,32 @@ class DriverAssistantAgent(AutonomousAgent):
             sensor_lidar_point = sensor_latest_data[1]
 
         if sensor_lidar_point is not None:
-            front_lidar_point = sensor_lidar_point[(sensor_lidar_point[:, 0] > 0)]
+            front_lidar_point = sensor_lidar_point[(sensor_lidar_point[:, 0] <= 1) & 
+                                                   (sensor_lidar_point[:, 1] < 1) & (sensor_lidar_point[:, 1] > -1)]
             distances = np.sqrt(front_lidar_point[:, 0]**2 + front_lidar_point[:, 1]**2 + front_lidar_point[:, 2]**2)
-            nearby_points = front_lidar_point[distances < 3.0]
+            nearby_points = front_lidar_point[distances < 2.0]
 
         if sensor_latest_image[1] is not None:
             image = Image.fromarray(sensor_latest_image[1])
             image = image.resize((224, 224))
             array = np.array(image) / 255.0 # Normalize to [0, 1]
             input_tensor = np.expand_dims(array, axis=0)  # Now (1, 224, 224, 3)
-            prediction = self.model.predict(input_tensor)
+            pedestrian_prediction = self.pedestrian_model.predict(input_tensor)
+            # sign_prediction = self.sign_model.predict(input_tensor)
 
-            if prediction[0][0] > 0.5:
+            if pedestrian_prediction[0][0] > 0.5:
                 self._hic.run_interface(input_data, True)
                 if len(nearby_points) > 0:
                     override_control.brake = 1.0
                     override_control.hand_brake = True
                     override_control.throttle = 0.0
                     print('Pedestrian detected! Braking.')
+            # elif np.argmax(sign_prediction) == 7:
+            #     # self._hic.run_interface(input_data, True)
+            #     override_control.brake = 1.0
+            #     override_control.hand_brake = True
+            #     override_control.throttle = 0.0
+            #     print('Stop sign detected')
             else:
                 self._hic.run_interface(input_data, False)
 
