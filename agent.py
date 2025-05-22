@@ -42,6 +42,10 @@ class DriverAssistantAgent(AutonomousAgent):
     Main agent class that processes sensor data and generates vehicle control commands.
     In standalone mode the agent spawns its own sensors; in evaluation mode these are provided externally.
     """
+    STATE_NORMAL = "NORMAL"
+    STATE_SLOWDOWN = "SLOWDOWN"
+    STATE_STOPPED = "STOPPED"
+
     def setup(self, path_to_conf_file, standalone_mode=False):
         """
         Initialize the agent.
@@ -54,8 +58,8 @@ class DriverAssistantAgent(AutonomousAgent):
         self.track = Track.SENSORS  
         self.agent_engaged = False
         self.standalone_mode = standalone_mode
-        self.camera_width = 3840/2
-        self.camera_height = 1080/2
+        self.camera_width = 3840
+        self.camera_height = 1080
         self._side_scale = 0.3
         self._left_mirror = True
         self._right_mirror = True
@@ -66,8 +70,10 @@ class DriverAssistantAgent(AutonomousAgent):
         if self.standalone_mode:
             self._sensor_objects = {}
             self._spawn_sensors()
-        self.pedestrian_model = keras.models.load_model('model/pedestrian_model_May12.keras')
+        self.pedestrian_model = keras.models.load_model('model/pedestrian_model_May12.keras') # pedestrian model
         self.sign_model = keras.models.load_model('model/resnet50_sign.keras')
+        self.control_state = DriverAssistantAgent.STATE_NORMAL
+        self.next_state = DriverAssistantAgent.STATE_NORMAL
         logging.info("DriverAssistantAgent setup complete. Standalone mode: %s", self.standalone_mode)
 
     def sensors(self):
@@ -179,7 +185,7 @@ class DriverAssistantAgent(AutonomousAgent):
             sensor_lidar_point = sensor_latest_data[1]
 
         if sensor_lidar_point is not None:
-            front_lidar_point = sensor_lidar_point[(sensor_lidar_point[:, 0] <= 1) & 
+            front_lidar_point = sensor_lidar_point[(sensor_lidar_point[:, 0] <= 1.5) & 
                                                    (sensor_lidar_point[:, 1] < 1) & (sensor_lidar_point[:, 1] > -1)]
             distances = np.sqrt(front_lidar_point[:, 0]**2 + front_lidar_point[:, 1]**2 + front_lidar_point[:, 2]**2)
             nearby_points = front_lidar_point[distances < 2.0]
@@ -192,12 +198,11 @@ class DriverAssistantAgent(AutonomousAgent):
             pedestrian_prediction = self.pedestrian_model.predict(input_tensor)
             # sign_prediction = self.sign_model.predict(input_tensor)
 
+            pedestrian_neraby = False
             if pedestrian_prediction[0][0] > 0.5:
                 self._hic.run_interface(input_data, True)
                 if len(nearby_points) > 0:
-                    override_control.brake = 1.0
-                    override_control.hand_brake = True
-                    override_control.throttle = 0.0
+                    pedestrian_neraby = True
                     print('Pedestrian detected! Braking.')
             # elif np.argmax(sign_prediction) == 7:
             #     # self._hic.run_interface(input_data, True)
@@ -208,8 +213,31 @@ class DriverAssistantAgent(AutonomousAgent):
             else:
                 self._hic.run_interface(input_data, False)
 
-        return override_control
+        # Control Automata
+        if self.control_state == DriverAssistantAgent.STATE_NORMAL:
+            if pedestrian_neraby:
+                self.next_state = DriverAssistantAgent.STATE_SLOWDOWN
+        elif self.control_state == DriverAssistantAgent.STATE_SLOWDOWN:
+            override_control.brake = 1.0
+            override_control.hand_brake = True
+            override_control.throttle = 0.0
 
+            velocity = self.vehicle.get_velocity()
+            speed = (velocity.x**2 + velocity.y**2 + velocity.z**2)**0.5 # Euclidean norm
+            if speed == 0:
+                # self.vehicle.set_target_velocity(speed-1)
+            # else:
+                print("Stop")
+                self.next_state = DriverAssistantAgent.STATE_STOPPED
+        elif self.control_state == DriverAssistantAgent.STATE_STOPPED:
+            if not pedestrian_neraby:
+                self.next_state = DriverAssistantAgent.STATE_NORMAL
+        else:
+            self.next_state = DriverAssistantAgent.STATE_NORMAL
+        self.control_state = self.next_state
+
+        return override_control
+    
     def merge_control(self, human_control, assistant_override):
         """
         Merge human input with any assistant override commands.
