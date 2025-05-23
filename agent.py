@@ -192,9 +192,13 @@ class DriverAssistantAgent(AutonomousAgent):
 
         if sensor_latest_image[1] is not None:
             image = Image.fromarray(sensor_latest_image[1])
+            if image.mode != 'RGB':
+                image = image.convert('RGB')
             image = image.resize((224, 224))
             array = np.array(image) / 255.0 # Normalize to [0, 1]
+            # print(array.shape)
             input_tensor = np.expand_dims(array, axis=0)  # Now (1, 224, 224, 3)
+            # print(input_tensor.shape)
             pedestrian_prediction = self.pedestrian_model.predict(input_tensor)
             # sign_prediction = self.sign_model.predict(input_tensor)
 
