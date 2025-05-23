@@ -70,12 +70,7 @@ class DriverAssistantAgent(AutonomousAgent):
         if self.standalone_mode:
             self._sensor_objects = {}
             self._spawn_sensors()
-<<<<<<< HEAD
         self.pedestrian_model = keras.models.load_model('model/pedestrian_model.keras') # pedestrian model
-=======
-        self.pedestrian_model = keras.models.load_model("/home/iql/SummerSchool_2025/leaderboard/leaderboard/autoagents/model/pedestrian_model.keras") # pedestrian model
-        #self.sign_model = keras.models.load_model('model/resnet50_sign.keras')
->>>>>>> bbdffc1451c3c480925a07d66d10ef9f58c83305
         self.control_state = DriverAssistantAgent.STATE_NORMAL
         self.next_state = DriverAssistantAgent.STATE_NORMAL
         logging.info("DriverAssistantAgent setup complete. Standalone mode: %s", self.standalone_mode)
@@ -230,7 +225,6 @@ class DriverAssistantAgent(AutonomousAgent):
         #     override_control.hand_brake = True
         #     override_control.throttle = 0.0
 
-<<<<<<< HEAD
         #     # velocity = self.vehicle.get_velocity()
         #     # speed = (velocity.x**2 + velocity.y**2 + velocity.z**2)**0.5 # Euclidean norm
         #     # if speed == 0:
@@ -244,21 +238,6 @@ class DriverAssistantAgent(AutonomousAgent):
         # else:
         #     self.next_state = DriverAssistantAgent.STATE_NORMAL
         # self.control_state = self.next_state
-=======
-            #velocity = self.vehicle.get_velocity()
-            #speed = (velocity.x**2 + velocity.y**2 + velocity.z**2)**0.5 # Euclidean norm
-            #if speed == 0:
-                # self.vehicle.set_target_velocity(speed-1)
-            # else:
-                #print("Stop")
-                #self.next_state = DriverAssistantAgent.STATE_STOPPED
-        elif self.control_state == DriverAssistantAgent.STATE_STOPPED:
-            if not pedestrian_neraby:
-                self.next_state = DriverAssistantAgent.STATE_NORMAL
-        else:
-            self.next_state = DriverAssistantAgent.STATE_NORMAL
-        self.control_state = self.next_state
->>>>>>> bbdffc1451c3c480925a07d66d10ef9f58c83305
 
         return override_control
     
