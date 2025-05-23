@@ -71,7 +71,6 @@ class DriverAssistantAgent(AutonomousAgent):
             self._sensor_objects = {}
             self._spawn_sensors()
         self.pedestrian_model = keras.models.load_model('model/pedestrian_model.keras') # pedestrian model
-        self.sign_model = keras.models.load_model('model/resnet50_sign.keras')
         self.control_state = DriverAssistantAgent.STATE_NORMAL
         self.next_state = DriverAssistantAgent.STATE_NORMAL
         logging.info("DriverAssistantAgent setup complete. Standalone mode: %s", self.standalone_mode)
@@ -218,27 +217,27 @@ class DriverAssistantAgent(AutonomousAgent):
                 self._hic.run_interface(input_data, False)
 
         # Control Automata
-        if self.control_state == DriverAssistantAgent.STATE_NORMAL:
-            if pedestrian_neraby:
-                self.next_state = DriverAssistantAgent.STATE_SLOWDOWN
-        elif self.control_state == DriverAssistantAgent.STATE_SLOWDOWN:
-            override_control.brake = 1.0
-            override_control.hand_brake = True
-            override_control.throttle = 0.0
+        # if self.control_state == DriverAssistantAgent.STATE_NORMAL:
+        #     if pedestrian_neraby:
+        #         self.next_state = DriverAssistantAgent.STATE_SLOWDOWN
+        # elif self.control_state == DriverAssistantAgent.STATE_SLOWDOWN:
+        #     override_control.brake = 1.0
+        #     override_control.hand_brake = True
+        #     override_control.throttle = 0.0
 
-            velocity = self.vehicle.get_velocity()
-            speed = (velocity.x**2 + velocity.y**2 + velocity.z**2)**0.5 # Euclidean norm
-            if speed == 0:
-                # self.vehicle.set_target_velocity(speed-1)
-            # else:
-                print("Stop")
-                self.next_state = DriverAssistantAgent.STATE_STOPPED
-        elif self.control_state == DriverAssistantAgent.STATE_STOPPED:
-            if not pedestrian_neraby:
-                self.next_state = DriverAssistantAgent.STATE_NORMAL
-        else:
-            self.next_state = DriverAssistantAgent.STATE_NORMAL
-        self.control_state = self.next_state
+        #     # velocity = self.vehicle.get_velocity()
+        #     # speed = (velocity.x**2 + velocity.y**2 + velocity.z**2)**0.5 # Euclidean norm
+        #     # if speed == 0:
+        #         # self.vehicle.set_target_velocity(speed-1)
+        #     # else:
+        #         # print("Stop")
+        #     self.next_state = DriverAssistantAgent.STATE_STOPPED
+        # elif self.control_state == DriverAssistantAgent.STATE_STOPPED:
+        #     if not pedestrian_neraby:
+        #         self.next_state = DriverAssistantAgent.STATE_NORMAL
+        # else:
+        #     self.next_state = DriverAssistantAgent.STATE_NORMAL
+        # self.control_state = self.next_state
 
         return override_control
     
