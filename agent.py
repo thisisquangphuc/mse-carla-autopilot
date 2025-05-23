@@ -12,8 +12,8 @@ Students can implement their assistant override logic in get_assistant_override(
 """
 
 import carla
-from modules.controls import KeyboardControl
-from modules.hud import HumanInterface
+from modules.controls import KeyboardControl, DualControl
+from modules.hud_team3 import HumanInterface
 from modules.agent_utils import AutonomousAgent, Track
 from modules.sensors import CameraManager, IMUSensor, LidarManager, RadarSensor
 from modules.sensors import get_sensor_layout
@@ -66,11 +66,16 @@ class DriverAssistantAgent(AutonomousAgent):
         self._prev_timestamp = 0
         self._clock = pygame.time.Clock()
         self._hic = HumanInterface(self.standalone_mode, self.camera_width, self.camera_height, self._side_scale, self._left_mirror, self._right_mirror)
-        self._controller = KeyboardControl(path_to_conf_file)
+        self._controller = DualControl(path_to_conf_file)
         if self.standalone_mode:
             self._sensor_objects = {}
             self._spawn_sensors()
+<<<<<<< HEAD
         self.pedestrian_model = keras.models.load_model('model/pedestrian_model.keras') # pedestrian model
+=======
+        self.pedestrian_model = keras.models.load_model("/home/iql/SummerSchool_2025/leaderboard/leaderboard/autoagents/model/pedestrian_model.keras") # pedestrian model
+        #self.sign_model = keras.models.load_model('model/resnet50_sign.keras')
+>>>>>>> bbdffc1451c3c480925a07d66d10ef9f58c83305
         self.control_state = DriverAssistantAgent.STATE_NORMAL
         self.next_state = DriverAssistantAgent.STATE_NORMAL
         logging.info("DriverAssistantAgent setup complete. Standalone mode: %s", self.standalone_mode)
@@ -166,7 +171,7 @@ class DriverAssistantAgent(AutonomousAgent):
         Retrieve human control commands.
         """
         time_diff = timestamp - self._prev_timestamp
-        return self._controller.parse_events(time_diff)
+        return self._controller.parse_events(time_diff)[0]
 
     def get_assistant_override(self, input_data):
         """
@@ -225,6 +230,7 @@ class DriverAssistantAgent(AutonomousAgent):
         #     override_control.hand_brake = True
         #     override_control.throttle = 0.0
 
+<<<<<<< HEAD
         #     # velocity = self.vehicle.get_velocity()
         #     # speed = (velocity.x**2 + velocity.y**2 + velocity.z**2)**0.5 # Euclidean norm
         #     # if speed == 0:
@@ -238,6 +244,21 @@ class DriverAssistantAgent(AutonomousAgent):
         # else:
         #     self.next_state = DriverAssistantAgent.STATE_NORMAL
         # self.control_state = self.next_state
+=======
+            #velocity = self.vehicle.get_velocity()
+            #speed = (velocity.x**2 + velocity.y**2 + velocity.z**2)**0.5 # Euclidean norm
+            #if speed == 0:
+                # self.vehicle.set_target_velocity(speed-1)
+            # else:
+                #print("Stop")
+                #self.next_state = DriverAssistantAgent.STATE_STOPPED
+        elif self.control_state == DriverAssistantAgent.STATE_STOPPED:
+            if not pedestrian_neraby:
+                self.next_state = DriverAssistantAgent.STATE_NORMAL
+        else:
+            self.next_state = DriverAssistantAgent.STATE_NORMAL
+        self.control_state = self.next_state
+>>>>>>> bbdffc1451c3c480925a07d66d10ef9f58c83305
 
         return override_control
     
@@ -247,12 +268,10 @@ class DriverAssistantAgent(AutonomousAgent):
         Override commands (if non-zero) take priority over human input.
         """
         final_control = carla.VehicleControl()
-        final_control.steer = assistant_override.steer if abs(assistant_override.steer) > 0.0 else human_control.steer
-        final_control.throttle = (assistant_override.throttle 
-                                  if assistant_override.throttle > human_control.throttle 
-                                  else human_control.throttle)
-        final_control.brake = max(human_control.brake, assistant_override.brake)
-        final_control.hand_brake = human_control.hand_brake or assistant_override.hand_brake
+        final_control.steer = human_control.steer
+        final_control.throttle = human_control.throttle
+        final_control.brake = human_control.brake
+        final_control.hand_brake = human_control.hand_brake
         final_control.gear = human_control.gear
         final_control.reverse = human_control.reverse
         return final_control
@@ -297,5 +316,4 @@ class DriverAssistantAgent(AutonomousAgent):
                     sensor_obj.sensor.destroy()
             self._hic.set_black_screen()
             self._hic._quit()
-
 
