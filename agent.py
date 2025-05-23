@@ -70,7 +70,7 @@ class DriverAssistantAgent(AutonomousAgent):
         if self.standalone_mode:
             self._sensor_objects = {}
             self._spawn_sensors()
-        self.pedestrian_model = keras.models.load_model('model/pedestrian_model_May12.keras') # pedestrian model
+        self.pedestrian_model = keras.models.load_model('model/pedestrian_model.keras') # pedestrian model
         self.sign_model = keras.models.load_model('model/resnet50_sign.keras')
         self.control_state = DriverAssistantAgent.STATE_NORMAL
         self.next_state = DriverAssistantAgent.STATE_NORMAL
