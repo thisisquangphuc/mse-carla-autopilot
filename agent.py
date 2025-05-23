@@ -185,7 +185,7 @@ class DriverAssistantAgent(AutonomousAgent):
             sensor_lidar_point = sensor_latest_data[1]
 
         if sensor_lidar_point is not None:
-            front_lidar_point = sensor_lidar_point[(sensor_lidar_point[:, 0] <= 1.5) & 
+            front_lidar_point = sensor_lidar_point[(sensor_lidar_point[:, 0] > 0) & (sensor_lidar_point[:, 0] <= 1.5) & 
                                                    (sensor_lidar_point[:, 1] < 1) & (sensor_lidar_point[:, 1] > -1)]
             distances = np.sqrt(front_lidar_point[:, 0]**2 + front_lidar_point[:, 1]**2 + front_lidar_point[:, 2]**2)
             nearby_points = front_lidar_point[distances < 2.0]
