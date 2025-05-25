@@ -12,8 +12,8 @@ Students can implement their assistant override logic in get_assistant_override(
 """
 
 import carla
-from modules.controls import KeyboardControl, DualControl
-from modules.hud_team3 import HumanInterface
+from modules.controls import KeyboardControl
+from modules.hud import HumanInterface
 from modules.agent_utils import AutonomousAgent, Track
 from modules.sensors import CameraManager, IMUSensor, LidarManager, RadarSensor
 from modules.sensors import get_sensor_layout
@@ -25,6 +25,8 @@ import tensorflow as tf
 import keras
 import numpy as np
 from PIL import Image
+import os
+import math
 # from tensorflow.keras.preprocessing import image
 logger = logging.getLogger(__name__)
 
@@ -58,21 +60,24 @@ class DriverAssistantAgent(AutonomousAgent):
         self.track = Track.SENSORS  
         self.agent_engaged = False
         self.standalone_mode = standalone_mode
-        self.camera_width = 3840
-        self.camera_height = 1080
+        self.camera_width = 3840/2
+        self.camera_height = 1080/2
         self._side_scale = 0.3
         self._left_mirror = True
         self._right_mirror = True
         self._prev_timestamp = 0
         self._clock = pygame.time.Clock()
         self._hic = HumanInterface(self.standalone_mode, self.camera_width, self.camera_height, self._side_scale, self._left_mirror, self._right_mirror)
-        self._controller = DualControl(path_to_conf_file)
+        self._controller = KeyboardControl(path_to_conf_file)
         if self.standalone_mode:
             self._sensor_objects = {}
             self._spawn_sensors()
         self.pedestrian_model = keras.models.load_model('model/pedestrian_model.keras') # pedestrian model
         self.control_state = DriverAssistantAgent.STATE_NORMAL
         self.next_state = DriverAssistantAgent.STATE_NORMAL
+        self.plot = False
+        self.estimated_velocity = 0.0
+        self.velocity_ratio = 0.0
         logging.info("DriverAssistantAgent setup complete. Standalone mode: %s", self.standalone_mode)
 
     def sensors(self):
@@ -124,6 +129,7 @@ class DriverAssistantAgent(AutonomousAgent):
             elif sensor_def['type'] == 'sensor.other.imu':
                 imu_sensor = IMUSensor(self.vehicle)
                 self._sensor_objects[sensor_id] = imu_sensor
+    
 
     def get_sensor_data(self):
         """
@@ -138,6 +144,8 @@ class DriverAssistantAgent(AutonomousAgent):
             elif sensor_id == 'LIDAR':
                 if sensor_obj.latest_data is not None:
                     sensor_data[sensor_id] = (None, sensor_obj.latest_data)
+            elif sensor_id == 'IMU':
+                sensor_data[sensor_id] = (None, sensor_obj)
         return sensor_data
 
     def get_front_image_frame(self):
@@ -166,9 +174,9 @@ class DriverAssistantAgent(AutonomousAgent):
         Retrieve human control commands.
         """
         time_diff = timestamp - self._prev_timestamp
-        return self._controller.parse_events(time_diff)[0]
+        return self._controller.parse_events(time_diff)
 
-    def get_assistant_override(self, input_data):
+    def get_assistant_override(self, input_data, timestamp):
         """
         Process sensor data and decide if an assistant override is needed.
         Students should implement override logic (e.g., emergency braking) here.
@@ -178,16 +186,52 @@ class DriverAssistantAgent(AutonomousAgent):
         # Example placeholder logic:
         # if obstacle_detected(input_data.get('LIDAR')):
         #     override_control.brake = 1.0
+
+        imu_sensor = input_data.get('IMU')
+        # print(imu_sensor[1])
+        # imu_sensor = self._sensor_objects.get('IMU')  # or whatever sensor_id you use
+
+        if imu_sensor is not None:
+            self.calculate_velocity(imu_sensor[1], timestamp)
+
         sensor_latest_image = input_data.get('Center') # get front camera image
         sensor_latest_data = input_data.get('LIDAR') # get LIDAR data point
         if sensor_latest_data[1] is not None:
             sensor_lidar_point = sensor_latest_data[1]
 
         if sensor_lidar_point is not None:
-            front_lidar_point = sensor_lidar_point[(sensor_lidar_point[:, 0] > 0) & (sensor_lidar_point[:, 0] <= 1.5) & 
-                                                   (sensor_lidar_point[:, 1] < 1) & (sensor_lidar_point[:, 1] > -1)]
+            # front_lidar_point = sensor_lidar_point[(sensor_lidar_point[:, 0] > 0) & (sensor_lidar_point[:, 0] <= 1.5) & 
+            #                                        (sensor_lidar_point[:, 1] < 1) & (sensor_lidar_point[:, 1] > -1)]
+            front_lidar_point = sensor_lidar_point[
+                (sensor_lidar_point[:, 0] > 0) &      # In front
+                (np.abs(sensor_lidar_point[:, 1]) < 2.0) &  # Within lane width
+                (sensor_lidar_point[:, 2] > -1.5) & (sensor_lidar_point[:, 2] < 2.5)  # Ground to head height
+            ]
+            # Estimate distance to closest point
+            if len(front_lidar_point) > 0:
+                dists = np.linalg.norm(front_lidar_point[:, :3], axis=1)
+                min_dist = np.argmin(dists)
+
+                closest_point = front_lidar_point[min_dist]  # shape: (4,) → [x, y, z, intensity]
+                x, y, z = map(float, closest_point[:3])
+                point_location = carla.Location(x=x, y=y, z=z)      
+
+                lidar_transform = self._sensor_objects['LIDAR'].sensor.get_transform()
+                world_point = lidar_transform.transform(point_location)
+                
+                self.vehicle.get_world().debug.draw_point(world_point + self.vehicle.get_location(), size=0.2, color=carla.Color(255,0,0), life_time=0.2)
+
+                # if min_dist < 6:  # distance threshold
+                    # print(f'LIDAR => Warning! Distance: {min_dist:.2f} m')
+            
             distances = np.sqrt(front_lidar_point[:, 0]**2 + front_lidar_point[:, 1]**2 + front_lidar_point[:, 2]**2)
-            nearby_points = front_lidar_point[distances < 2.0]
+            nearby_points = front_lidar_point[distances < 1.0]
+        
+        for event in pygame.event.get():
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_i:
+                print("xxxxxxx")
+                self.lidar_to_npy(front_lidar_point)
+                break
 
         if sensor_latest_image[1] is not None:
             image = Image.fromarray(sensor_latest_image[1])
@@ -203,7 +247,7 @@ class DriverAssistantAgent(AutonomousAgent):
 
             pedestrian_neraby = False
             if pedestrian_prediction[0][0] > 0.5:
-                self._hic.run_interface(input_data, True)
+                self._hic.run_interface(input_data, True, front_lidar_point, self.estimated_velocity)
                 if len(nearby_points) > 0:
                     pedestrian_neraby = True
                     print('Pedestrian detected! Braking.')
@@ -214,7 +258,7 @@ class DriverAssistantAgent(AutonomousAgent):
             #     override_control.throttle = 0.0
             #     print('Stop sign detected')
             else:
-                self._hic.run_interface(input_data, False)
+                self._hic.run_interface(input_data, False, front_lidar_point, self.estimated_velocity)
 
         # Control Automata
         # if self.control_state == DriverAssistantAgent.STATE_NORMAL:
@@ -241,6 +285,43 @@ class DriverAssistantAgent(AutonomousAgent):
 
         return override_control
     
+
+    def calculate_velocity(self, imu_sensor, timestamp):
+        if imu_sensor.accelerometer is not None:
+            accel = imu_sensor.accelerometer  # carla.Vector3D
+
+            if self._prev_timestamp is not None:
+                delta_time = timestamp - self._prev_timestamp
+                yaw_rad = math.radians(self.vehicle.get_transform().rotation.yaw)
+
+                # Project acceleration to forward direction
+                accel_forward = accel[0] * math.cos(yaw_rad) + accel[1] * math.sin(yaw_rad)
+                
+                self.estimated_velocity += accel_forward * delta_time
+                if abs(accel_forward) < 0.05:
+                    if self.estimated_velocity < 0.5:
+                        self.estimated_velocity = 0.0
+                    else:
+                        self.estimated_velocity *= self.velocity_ratio
+                # Optional: clamp to realistic values
+                self.estimated_velocity = max(0.0, min(self.estimated_velocity, 100.0))
+            self._prev_timestamp = timestamp
+        print(f"IMU-based speed estimate: {self.estimated_velocity:.2f} m/s - accel_x: {accel[0]:.6f} - accel_y: {accel[1]:.6f} ")
+    
+
+    def lidar_to_npy(new_lidar_data, filename='lidar_points.npy'):
+        new_points = np.array([[point[0], point[1], point[2]] for point in new_lidar_data])
+            
+        if os.path.exists(filename):
+            existing_points = np.load(filename)
+            combined = np.vstack((existing_points, new_points))
+        else:
+            combined = new_points
+
+        np.save(filename, combined)
+        print(f"Appended {len(new_points)} points. Total: {len(combined)} points.")
+
+        
     def merge_control(self, human_control, assistant_override):
         """
         Merge human input with any assistant override commands.
@@ -273,10 +354,8 @@ class DriverAssistantAgent(AutonomousAgent):
         if self.standalone_mode:
             if input_data is None:
                 input_data = self.get_sensor_data()
-        # self._hic.run_interface(input_data)
-        # self._hic.run_interface_w_alert(input_data)
         human_control = self.get_human_control(input_data, timestamp)
-        assistant_override = self.get_assistant_override(input_data)
+        assistant_override = self.get_assistant_override(input_data, timestamp)
         final_control = self.merge_control(human_control, assistant_override)
         logging.info("Timestamp: %f", timestamp)
         logging.info("Human Control: %s", human_control)

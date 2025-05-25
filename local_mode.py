@@ -32,6 +32,9 @@ def load_config(config_file='settings.ini'):
     args.filter = client_conf.get('filter', 'vehicle.*')
     args.autopilot = client_conf.getboolean('autopilot', False)
     args.debug = client_conf.getboolean('debug', True)
+    #
+    team3 = config['TEAM3']
+    args.velocity_ratio = team3.getfloat('velocity_ratio', 0.95)
     return args
 
 # -------------------------
@@ -64,31 +67,17 @@ def main():
         return
     
     agent = DriverAssistantAgent()
+    agent.velocity_ratio = args.velocity_ratio
     agent.vehicle = vehicle
     print("Running in standalone mode")
     agent.setup(None, standalone_mode=True)
     
     clock = pygame.time.Clock()
-    num = 0
-
-    # get_pedestrian = False
-    # pedestrian = []
 
     try:
         while True:
             clock.tick_busy_loop(120)
-            # if not get_pedestrian:
-            #     if len(world.get_actors().filter('vehicle.*') > 0):
-            #         get_pedestrian = True
-            #         pedestrian.append(world.get_actors().filter('walker.*'))
-# 
-            if (pygame.time.get_ticks() > (num*5000)):
-                # agent.get_front_image_frame()
-                # if ((num % 3) == 0):
-                #     agent.get_left_image_frame()
-                # if ((num % 4) == 0):
-                #     agent.get_right_image_frame()
-                num += 1
+
             timestamp = world.get_snapshot().timestamp.elapsed_seconds
             control = agent.run_step(timestamp=timestamp)
             vehicle.apply_control(control)
