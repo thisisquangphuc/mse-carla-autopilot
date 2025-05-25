@@ -27,7 +27,7 @@ def load_config(config_file='settings.ini'):
     args.port = server.getint('port', 2000)
     # CARLA client settings
     client_conf = config['CARLA-CLIENT']
-    res = client_conf.get('resolution', '800x600')
+    res = client_conf.get('resolution', '1920x540')
     args.width, args.height = [int(x) for x in res.split('x')]
     args.filter = client_conf.get('filter', 'vehicle.*')
     args.autopilot = client_conf.getboolean('autopilot', False)

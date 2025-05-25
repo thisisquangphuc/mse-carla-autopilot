@@ -202,24 +202,51 @@ class DriverAssistantAgent(AutonomousAgent):
         if sensor_lidar_point is not None:
             # front_lidar_point = sensor_lidar_point[(sensor_lidar_point[:, 0] > 0) & (sensor_lidar_point[:, 0] <= 1.5) & 
             #                                        (sensor_lidar_point[:, 1] < 1) & (sensor_lidar_point[:, 1] > -1)]
+            # front_lidar_point = sensor_lidar_point[
+            #     (sensor_lidar_point[:, 0] > 0) &      # In front
+            #     (np.abs(sensor_lidar_point[:, 1]) < 1.0) &  # Within lane width
+            #     (sensor_lidar_point[:, 2] > -1.5) & (sensor_lidar_point[:, 2] < 2.5)  # Ground to head height
+            # ]
+
+            # print(sensor_lidar_point)
             front_lidar_point = sensor_lidar_point[
-                (sensor_lidar_point[:, 0] > 0) &      # In front
-                (np.abs(sensor_lidar_point[:, 1]) < 2.0) &  # Within lane width
-                (sensor_lidar_point[:, 2] > -1.5) & (sensor_lidar_point[:, 2] < 2.5)  # Ground to head height
+                (sensor_lidar_point[:, 0] > 0.5) &                 # At least half meter ahead
+                (np.abs(sensor_lidar_point[:, 1]) < 0.75) &        # Narrower width — ~1.5m window
+                (sensor_lidar_point[:, 2] > -0.5) &                 # Above ground (ignore road)
+                (sensor_lidar_point[:, 2] < 2.0)                   # Below car roof height
             ]
+            
+            distance = -1
             # Estimate distance to closest point
             if len(front_lidar_point) > 0:
+                print(front_lidar_point)
+                print(len(front_lidar_point))
                 dists = np.linalg.norm(front_lidar_point[:, :3], axis=1)
                 min_dist = np.argmin(dists)
+                print(min_dist)
+                print(front_lidar_point[min_dist])
 
                 closest_point = front_lidar_point[min_dist]  # shape: (4,) → [x, y, z, intensity]
+                distance = (closest_point[0]**2 + closest_point[1]**2)**0.5
+                print(distance)
                 x, y, z = map(float, closest_point[:3])
-                point_location = carla.Location(x=x, y=y, z=z)      
+                point_location = carla.Location(x=x, y=y, z=z)    
+                # print(point_location)  
 
                 lidar_transform = self._sensor_objects['LIDAR'].sensor.get_transform()
                 world_point = lidar_transform.transform(point_location)
+                if world_point.z < 0.5:
+                    world_point.z += 1.5
+                print(str(world_point.x) + " - " + str(world_point.y) + " - " + str(world_point.z))  
+                # vehicle_transform = self.vehicle.get_transform()
+                # local_relative = self.inverse_transform(world_point, vehicle_transform) 
+                # local_relative = inverse_transform(world_point, vehicle_transform)
+
+                # print(f"Relative position from car: x={local_relative.x:.2f}, y={local_relative.y:.2f}, z={local_relative.z:.2f}")           
+                # print(world_point)
                 
-                self.vehicle.get_world().debug.draw_point(world_point + self.vehicle.get_location(), size=0.2, color=carla.Color(255,0,0), life_time=0.2)
+                self.vehicle.get_world().debug.draw_point(world_point, size=1.0, color=carla.Color(255,255,0), life_time=5.0)
+                self.vehicle.get_world().debug.draw_string(world_point, "text", draw_shadow=True, color=carla.Color(0,255,0), life_time=5.0)
 
                 # if min_dist < 6:  # distance threshold
                     # print(f'LIDAR => Warning! Distance: {min_dist:.2f} m')
@@ -247,7 +274,7 @@ class DriverAssistantAgent(AutonomousAgent):
 
             pedestrian_neraby = False
             if pedestrian_prediction[0][0] > 0.5:
-                self._hic.run_interface(input_data, True, front_lidar_point, self.estimated_velocity)
+                self._hic.run_interface(input_data, True, distance, self.estimated_velocity)
                 if len(nearby_points) > 0:
                     pedestrian_neraby = True
                     print('Pedestrian detected! Braking.')
@@ -258,7 +285,7 @@ class DriverAssistantAgent(AutonomousAgent):
             #     override_control.throttle = 0.0
             #     print('Stop sign detected')
             else:
-                self._hic.run_interface(input_data, False, front_lidar_point, self.estimated_velocity)
+                self._hic.run_interface(input_data, False, distance, self.estimated_velocity)
 
         # Control Automata
         # if self.control_state == DriverAssistantAgent.STATE_NORMAL:
@@ -289,24 +316,51 @@ class DriverAssistantAgent(AutonomousAgent):
     def calculate_velocity(self, imu_sensor, timestamp):
         if imu_sensor.accelerometer is not None:
             accel = imu_sensor.accelerometer  # carla.Vector3D
-
             if self._prev_timestamp is not None:
                 delta_time = timestamp - self._prev_timestamp
                 yaw_rad = math.radians(self.vehicle.get_transform().rotation.yaw)
-
                 # Project acceleration to forward direction
-                accel_forward = accel[0] * math.cos(yaw_rad) + accel[1] * math.sin(yaw_rad)
+                # accel_forward = accel[0] * math.cos(yaw_rad) + accel[1] * math.sin(yaw_rad)
+                accel_forward = accel[0]
                 
                 self.estimated_velocity += accel_forward * delta_time
                 if abs(accel_forward) < 0.05:
                     if self.estimated_velocity < 0.5:
-                        self.estimated_velocity = 0.0
+                        None
+                        # self.estimated_velocity = 0.0
                     else:
                         self.estimated_velocity *= self.velocity_ratio
                 # Optional: clamp to realistic values
+                # print(self.estimated_velocity)
                 self.estimated_velocity = max(0.0, min(self.estimated_velocity, 100.0))
             self._prev_timestamp = timestamp
-        print(f"IMU-based speed estimate: {self.estimated_velocity:.2f} m/s - accel_x: {accel[0]:.6f} - accel_y: {accel[1]:.6f} ")
+        # print(f"IMU-based speed estimate: {self.estimated_velocity:.2f} m/s - accel_x: {accel[0]:.6f} - accel_y: {accel[1]:.6f} ")
+
+    def inverse_transform(location, reference_transform):
+        """
+        Convert a world-space carla.Location into vehicle-local coordinates
+        based on the reference transform (typically vehicle.get_transform()).
+
+        Args:
+            location (carla.Location): world-space location
+            reference_transform (carla.Transform): vehicle transform
+
+        Returns:
+            carla.Location: point in vehicle-local frame
+        """
+        dx = location.x - reference_transform.location.x
+        dy = location.y - reference_transform.location.y
+        dz = location.z - reference_transform.location.z
+
+        # Convert rotation to radians
+        yaw = math.radians(reference_transform.rotation.yaw)
+
+        # Inverse rotation (2D yaw only)
+        x_local = dx * math.cos(-yaw) - dy * math.sin(-yaw)
+        y_local = dx * math.sin(-yaw) + dy * math.cos(-yaw)
+        z_local = dz  # assume flat road, no pitch/roll
+
+        return carla.Location(x=x_local, y=y_local, z=z_local)        
     
 
     def lidar_to_npy(new_lidar_data, filename='lidar_points.npy'):
