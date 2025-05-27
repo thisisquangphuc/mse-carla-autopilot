@@ -12,8 +12,8 @@ Students can implement their assistant override logic in get_assistant_override(
 """
 
 import carla
-from modules.controls import KeyboardControl
-from modules.hud import HumanInterface
+from modules.controls import KeyboardControl, DualControl
+from modules.hud_team3 import HumanInterface
 from modules.agent_utils import AutonomousAgent, Track
 from modules.sensors import CameraManager, IMUSensor, LidarManager, RadarSensor
 from modules.sensors import get_sensor_layout
@@ -60,19 +60,19 @@ class DriverAssistantAgent(AutonomousAgent):
         self.track = Track.SENSORS  
         self.agent_engaged = False
         self.standalone_mode = standalone_mode
-        self.camera_width = 3840/2
-        self.camera_height = 1080/2
+        self.camera_width = 1280
+        self.camera_height = 720
         self._side_scale = 0.3
         self._left_mirror = True
         self._right_mirror = True
         self._prev_timestamp = 0
         self._clock = pygame.time.Clock()
         self._hic = HumanInterface(self.standalone_mode, self.camera_width, self.camera_height, self._side_scale, self._left_mirror, self._right_mirror)
-        self._controller = KeyboardControl(path_to_conf_file)
+        self._controller = DualControl(path_to_conf_file)
         if self.standalone_mode:
             self._sensor_objects = {}
             self._spawn_sensors()
-        self.pedestrian_model = keras.models.load_model('model/pedestrian_model.keras') # pedestrian model
+        self.pedestrian_model = keras.models.load_model("/home/iql/SummerSchool_2025/leaderboard/leaderboard/autoagents/model/pedestrian_model.keras") # pedestrian model
         self.control_state = DriverAssistantAgent.STATE_NORMAL
         self.next_state = DriverAssistantAgent.STATE_NORMAL
         self.plot = False
@@ -174,167 +174,98 @@ class DriverAssistantAgent(AutonomousAgent):
         Retrieve human control commands.
         """
         time_diff = timestamp - self._prev_timestamp
-        return self._controller.parse_events(time_diff)
+        return self._controller.parse_events(time_diff)[0]
 
     def get_assistant_override(self, input_data, timestamp):
         """
-        Process sensor data and decide if an assistant override is needed.
-        Students should implement override logic (e.g., emergency braking) here.
-        By default, no override is applied.
+        Leaderboard-compatible assistant override for emergency logic.
+        Includes LIDAR filtering and optional pedestrian detection via vision.
         """
+        distance = -1
+        pedestrian_neraby = False
         override_control = carla.VehicleControl()
-        # Example placeholder logic:
-        # if obstacle_detected(input_data.get('LIDAR')):
-        #     override_control.brake = 1.0
+        front_lidar_point = None
 
-        imu_sensor = input_data.get('IMU')
-        # print(imu_sensor[1])
-        # imu_sensor = self._sensor_objects.get('IMU')  # or whatever sensor_id you use
+        # IMU-based velocity calculation
+        imu_data = input_data.get('IMU')
+        if imu_data is not None:
+            _, imu = imu_data
+            self.calculate_velocity(imu, timestamp)
 
-        if imu_sensor is not None:
-            self.calculate_velocity(imu_sensor[1], timestamp)
+        # LIDAR processing
+        lidar_data = input_data.get('LIDAR')
+        if lidar_data is not None and lidar_data[1] is not None:
+            sensor_lidar_point = lidar_data[1]
 
-        sensor_latest_image = input_data.get('Center') # get front camera image
-        sensor_latest_data = input_data.get('LIDAR') # get LIDAR data point
-        if sensor_latest_data[1] is not None:
-            sensor_lidar_point = sensor_latest_data[1]
-
-        if sensor_lidar_point is not None:
-            # front_lidar_point = sensor_lidar_point[(sensor_lidar_point[:, 0] > 0) & (sensor_lidar_point[:, 0] <= 1.5) & 
-            #                                        (sensor_lidar_point[:, 1] < 1) & (sensor_lidar_point[:, 1] > -1)]
-            # front_lidar_point = sensor_lidar_point[
-            #     (sensor_lidar_point[:, 0] > 0) &      # In front
-            #     (np.abs(sensor_lidar_point[:, 1]) < 1.0) &  # Within lane width
-            #     (sensor_lidar_point[:, 2] > -1.5) & (sensor_lidar_point[:, 2] < 2.5)  # Ground to head height
-            # ]
-
-            # print(sensor_lidar_point)
             front_lidar_point = sensor_lidar_point[
-                (sensor_lidar_point[:, 0] > 0.5) &                 # At least half meter ahead
-                (np.abs(sensor_lidar_point[:, 1]) < 0.75) &        # Narrower width — ~1.5m window
-                (sensor_lidar_point[:, 2] > -0.5) &                 # Above ground (ignore road)
-                (sensor_lidar_point[:, 2] < 2.0)                   # Below car roof height
+                (sensor_lidar_point[:, 0] > 0.5) &
+                (np.abs(sensor_lidar_point[:, 1]) < 0.75) &
+                (sensor_lidar_point[:, 2] > -0.5) &
+                (sensor_lidar_point[:, 2] < 2.0)
             ]
-            
-            distance = -1
-            # Estimate distance to closest point
+
             if len(front_lidar_point) > 0:
-                print(front_lidar_point)
-                print(len(front_lidar_point))
                 dists = np.linalg.norm(front_lidar_point[:, :3], axis=1)
                 min_dist = np.argmin(dists)
-                print(min_dist)
-                print(front_lidar_point[min_dist])
+                closest_point = front_lidar_point[min_dist]
+                distance = np.linalg.norm(closest_point[:2])
 
-                closest_point = front_lidar_point[min_dist]  # shape: (4,) → [x, y, z, intensity]
-                distance = (closest_point[0]**2 + closest_point[1]**2)**0.5
-                print(distance)
-                x, y, z = map(float, closest_point[:3])
-                point_location = carla.Location(x=x, y=y, z=z)    
-                # print(point_location)  
 
-                lidar_transform = self._sensor_objects['LIDAR'].sensor.get_transform()
-                world_point = lidar_transform.transform(point_location)
-                if world_point.z < 0.5:
-                    world_point.z += 1.5
-                print(str(world_point.x) + " - " + str(world_point.y) + " - " + str(world_point.z))  
-                # vehicle_transform = self.vehicle.get_transform()
-                # local_relative = self.inverse_transform(world_point, vehicle_transform) 
-                # local_relative = inverse_transform(world_point, vehicle_transform)
-
-                # print(f"Relative position from car: x={local_relative.x:.2f}, y={local_relative.y:.2f}, z={local_relative.z:.2f}")           
-                # print(world_point)
-                
-                self.vehicle.get_world().debug.draw_point(world_point, size=1.0, color=carla.Color(255,255,0), life_time=5.0)
-                self.vehicle.get_world().debug.draw_string(world_point, "text", draw_shadow=True, color=carla.Color(0,255,0), life_time=5.0)
-
-                # if min_dist < 6:  # distance threshold
-                    # print(f'LIDAR => Warning! Distance: {min_dist:.2f} m')
-            
-            distances = np.sqrt(front_lidar_point[:, 0]**2 + front_lidar_point[:, 1]**2 + front_lidar_point[:, 2]**2)
+            distances = np.linalg.norm(front_lidar_point[:, :3], axis=1)
             nearby_points = front_lidar_point[distances < 1.0]
-        
-        for event in pygame.event.get():
-            if event.type == pygame.KEYDOWN and event.key == pygame.K_i:
-                print("xxxxxxx")
-                self.lidar_to_npy(front_lidar_point)
-                break
+        else:
+            nearby_points = []
 
-        if sensor_latest_image[1] is not None:
-            image = Image.fromarray(sensor_latest_image[1])
-            if image.mode != 'RGB':
-                image = image.convert('RGB')
-            image = image.resize((224, 224))
-            array = np.array(image) / 255.0 # Normalize to [0, 1]
-            # print(array.shape)
-            input_tensor = np.expand_dims(array, axis=0)  # Now (1, 224, 224, 3)
-            # print(input_tensor.shape)
-            pedestrian_prediction = self.pedestrian_model.predict(input_tensor)
-            # sign_prediction = self.sign_model.predict(input_tensor)
 
-            pedestrian_neraby = False
-            if pedestrian_prediction[0][0] > 0.5:
+        # Image processing and pedestrian detection
+        cam_data = input_data.get('Center')
+        if cam_data is not None and cam_data[1] is not None:
+            img = Image.fromarray(cam_data[1])
+            if img.mode != 'RGB':
+                img = img.convert('RGB')
+            img = img.resize((224, 224))
+            img_arr = np.array(img) / 255.0
+            input_tensor = np.expand_dims(img_arr, axis=0)
+
+            prediction = self.pedestrian_model.predict(input_tensor)
+
+            if prediction[0][0] > 0.5:
                 self._hic.run_interface(input_data, True, distance, self.estimated_velocity)
                 if len(nearby_points) > 0:
                     pedestrian_neraby = True
                     print('Pedestrian detected! Braking.')
-            # elif np.argmax(sign_prediction) == 7:
-            #     # self._hic.run_interface(input_data, True)
-            #     override_control.brake = 1.0
-            #     override_control.hand_brake = True
-            #     override_control.throttle = 0.0
-            #     print('Stop sign detected')
             else:
                 self._hic.run_interface(input_data, False, distance, self.estimated_velocity)
 
-        # Control Automata
-        # if self.control_state == DriverAssistantAgent.STATE_NORMAL:
-        #     if pedestrian_neraby:
-        #         self.next_state = DriverAssistantAgent.STATE_SLOWDOWN
-        # elif self.control_state == DriverAssistantAgent.STATE_SLOWDOWN:
-        #     override_control.brake = 1.0
-        #     override_control.hand_brake = True
-        #     override_control.throttle = 0.0
-
-        #     # velocity = self.vehicle.get_velocity()
-        #     # speed = (velocity.x**2 + velocity.y**2 + velocity.z**2)**0.5 # Euclidean norm
-        #     # if speed == 0:
-        #         # self.vehicle.set_target_velocity(speed-1)
-        #     # else:
-        #         # print("Stop")
-        #     self.next_state = DriverAssistantAgent.STATE_STOPPED
-        # elif self.control_state == DriverAssistantAgent.STATE_STOPPED:
-        #     if not pedestrian_neraby:
-        #         self.next_state = DriverAssistantAgent.STATE_NORMAL
-        # else:
-        #     self.next_state = DriverAssistantAgent.STATE_NORMAL
-        # self.control_state = self.next_state
-
+        # Return assistant override control (may still be zeroed)
         return override_control
-    
+        
 
     def calculate_velocity(self, imu_sensor, timestamp):
-        if imu_sensor.accelerometer is not None:
-            accel = imu_sensor.accelerometer  # carla.Vector3D
-            if self._prev_timestamp is not None:
-                delta_time = timestamp - self._prev_timestamp
-                yaw_rad = math.radians(self.vehicle.get_transform().rotation.yaw)
-                # Project acceleration to forward direction
-                # accel_forward = accel[0] * math.cos(yaw_rad) + accel[1] * math.sin(yaw_rad)
-                accel_forward = accel[0]
-                
-                self.estimated_velocity += accel_forward * delta_time
-                if abs(accel_forward) < 0.05:
+        """
+        Estimate vehicle velocity from IMU acceleration data in the leaderboard stream format.
+        `imu_sensor` is a numpy array with [accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z]
+        """
+        # Extract acceleration from IMU numpy array
+        accel_data = imu_sensor  # Already a numpy array
+        accel_x = accel_data[0]  # Forward axis in CARLA coordinate system
+
+        if self._prev_timestamp is not None:
+            delta_time = timestamp - self._prev_timestamp
+            if delta_time > 0:
+                # Forward velocity estimate
+                self.estimated_velocity += accel_x * delta_time
+
+                if abs(accel_x) < 0.05:
                     if self.estimated_velocity < 0.5:
-                        None
-                        # self.estimated_velocity = 0.0
+                        pass  # velocity stays low
                     else:
                         self.estimated_velocity *= self.velocity_ratio
-                # Optional: clamp to realistic values
-                # print(self.estimated_velocity)
+
+                # Clamp velocity to reasonable values
                 self.estimated_velocity = max(0.0, min(self.estimated_velocity, 100.0))
-            self._prev_timestamp = timestamp
-        # print(f"IMU-based speed estimate: {self.estimated_velocity:.2f} m/s - accel_x: {accel[0]:.6f} - accel_y: {accel[1]:.6f} ")
+
+        self._prev_timestamp = timestamp
 
     def inverse_transform(location, reference_transform):
         """
@@ -428,4 +359,3 @@ class DriverAssistantAgent(AutonomousAgent):
                     sensor_obj.sensor.destroy()
             self._hic.set_black_screen()
             self._hic._quit()
-
