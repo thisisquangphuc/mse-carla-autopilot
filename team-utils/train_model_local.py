@@ -11,16 +11,18 @@ from tensorflow.keras.callbacks import EarlyStopping
 import matplotlib.pyplot as plt
 from PIL import Image
 from tensorflow.keras.callbacks import ModelCheckpoint
+import time
 
 # Set constants
 IMG_SIZE = 224
 BATCH_SIZE = 32
-EPOCHS = 20
-
+EPOCHS = 15
+VERSION = time.strftime("%Y%m%d-%H%M%S")
 
 base_dir = 'dataset/'
 train_dir = 'dataset/train'
 val_dir = 'dataset/val'
+output_dir = 'local_output/'
 
 def check_corrupted_images(base_path):
     for root, dirs, files in os.walk(base_path):
@@ -34,14 +36,17 @@ def check_corrupted_images(base_path):
                 # remove
                 os.remove(file_path)
                 print(f"[REMOVED] {file_path}")
-                
+
+check_corrupted_images(base_dir)            
 
 # Clear previous splits (if any)
 if os.path.exists(train_dir):
     shutil.rmtree(train_dir)
 if os.path.exists(val_dir):
     shutil.rmtree(val_dir)
-
+if not os.path.exists(output_dir):
+    os.makedirs(output_dir)
+    
 # Helper function to split images
 def split_data(src_dir, train_dst, val_dst, split_ratio=0.8):  # <==== 80-20 HERE
     images = os.listdir(src_dir)
@@ -117,7 +122,13 @@ model = tf.keras.Sequential([
 model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
 model.summary()
 
-checkpoint = ModelCheckpoint("best_model.keras", monitor='val_loss', save_best_only=True)
+model_path = os.path.join(output_dir, 'trained_models/')
+#  check if the model path exists, if not, create it
+if not os.path.exists(model_path):
+    os.makedirs(model_path)
+    
+output_model = os.path.join(model_path, VERSION + 'resnet50_pedestrian_before_finetune.keras')
+checkpoint = ModelCheckpoint(output_model, monitor='val_loss', save_best_only=True)
 
 # Enable early stopping - to prevent overfitting
 early_stop = EarlyStopping(monitor='val_loss', patience=2, restore_best_weights=True)
@@ -129,8 +140,9 @@ callbacks=[early_stop, checkpoint]
 history = model.fit(train_gen, validation_data=val_gen, epochs=EPOCHS, callbacks=callbacks)
 ## Train - without early stopping
 # history = model.fit(train_gen, validation_data=val_gen, epochs=EPOCHS)
-
+    
 ################ Fine-tuning (Optional)#################
+
 base_model.trainable = True  # Unfreeze base model
 
 # Freeze all layers except the last 20 of ResNet
@@ -147,13 +159,12 @@ model.compile(
 # Fine-tune for a few additional epochs
 fine_tune_history = model.fit(train_gen, validation_data=val_gen, epochs=5, callbacks=callbacks)
 
-
 ################# Evaluation #################
 # Evaluate
 loss, accuracy = model.evaluate(val_gen)
 print(f'Validation accuracy: {accuracy:.2f}')
 
-plot_path = 'local/plots/plots/'
+plot_path = os.path.join(output_dir, 'plots/')
 if not os.path.exists(plot_path):
     os.makedirs(plot_path)
 
@@ -163,7 +174,7 @@ plt.plot(history.history['val_accuracy'], label='Val Acc')
 plt.title('Accuracy over epochs')
 plt.legend()
 # plt.show()
-plt.savefig(plot_path + 'accuracy.png')
+plt.savefig(plot_path + VERSION + 'accuracy.png')
 
 
 plt.plot(history.history['loss'], label='Train Loss')
@@ -171,7 +182,7 @@ plt.plot(history.history['val_loss'], label='Val Loss')
 plt.title('Loss over epochs')
 plt.legend()
 # plt.show()
-plt.savefig(plot_path + 'loss.png')
+plt.savefig(plot_path + VERSION + 'loss.png')
 
 # Combine histories
 def combine_history(h1, h2):
@@ -188,17 +199,17 @@ plt.plot(combined_history['accuracy'], label='Train Acc')
 plt.plot(combined_history['val_accuracy'], label='Val Acc')
 plt.title('Combined Accuracy')
 plt.legend()
-plt.savefig(plot_path + 'combined_accuracy.png')
+plt.savefig(plot_path + VERSION + 'combined_accuracy.png')
 
 plt.figure()
 plt.plot(combined_history['loss'], label='Train Loss')
 plt.plot(combined_history['val_loss'], label='Val Loss')
 plt.title('Combined Loss')
 plt.legend()
-plt.savefig(plot_path + 'combined_loss.png')
+plt.savefig(plot_path + VERSION + 'combined_loss.png')
 
 ################# Save the model #################
 # Save the model to models/
-model_path = 'local/trained_models/'
-model.save(model_path + 'resnet50_pedestrian_tf2-11_py3-7.keras', save_format='keras')
+output_model = os.path.join(model_path, VERSION + 'renet50_pedestrian_after_finetune.keras')
+model.save(output_model)
 # model.save('local/trained_models/resnet50_sign.keras', save_format='keras')

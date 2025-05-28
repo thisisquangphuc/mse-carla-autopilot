@@ -63,7 +63,7 @@ class HumanInterface(object):
             #     self._surface.blit(right_surface, ((1 - self._scale) * self._width, (1 - self._scale) * self._height))
 
         for index, mess in enumerate(self.message):
-            self.draw_alert(mess, (255, index*50, index*50), (self._width/7, self._height/7+50*index))
+            self.draw_alert(mess, (255, index*100, index*50), (self._width/7, self._height/7+50*index))
 
         # self.draw_alert(f"IMU-based speed estimate: {velocity:.2f} m/s", (255,0,0), (self._width/5, self._height/5))
         # if pedestrian: 

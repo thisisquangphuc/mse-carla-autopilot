@@ -3,17 +3,22 @@ from tensorflow.keras.preprocessing import image
 import numpy as np
 import cv2
 import os
-# Load the model
-# model = tf.keras.models.load_model('models/resnet50_pedestrian_tf2-11_py3-7-v1.h5')
-model = tf.keras.models.load_model('models/resnet50_sign.keras')
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.metrics import precision_recall_curve, f1_score
 
-class_names = ['speed_30', 'speed_60', 'speed_90', 'speed_limit_30', 'speed_limit_40', 'speed_limit_60', 'stop', 'back']
+# Load the model
+# model = tf.keras.models.load_model('local/trained_models/resnet50_pedestrian_20250527-082525.keras')
+model = tf.keras.models.load_model('best_model.keras')
+# model = tf.keras.models.load_model('models/resnet50_sign.keras')
+
+class_names = ['pedestrian', 'no_pedestrian']
 
 IMG_SIZE = 224
 THRESHOLD = 0.5
 
 # Load and preprocess test image
-test_dir = 'test_resources/sign/'
+test_dir = 'test_resources/'
 # image_path = 'test_resources/001_nopedes.png'
 
 #read test images from directory
@@ -34,8 +39,11 @@ for fname in os.listdir(test_dir):
     predicted_class_index = np.argmax(prediction_scores)
     print(f"{fname} — Prediction scores: {prediction_scores}")
     # Decision
-    message = f"Predicted: {class_names[predicted_class_index]}"
-
+    if prediction_scores[predicted_class_index] < THRESHOLD:
+        message = f"Image (no pedestrian)"
+    else:
+        message = f"Image (pedestrian)"
+        
     # Display result
     # cv2.putText(image, message, (30, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0) if prediction < THRESHOLD else (0, 0, 255), 2)
     # cv2.imshow("Result", image)
