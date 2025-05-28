@@ -22,6 +22,7 @@ class HumanInterface(object):
         self._left_mirror = left_mirror
         self._right_mirror = right_mirror
         self._font = pygame.font.Font("modules/assets/fonts/DS-DIGI.TTF", 30) #! Modified by Phuc - double check
+        self.message = ["", "", ""]
         pygame.init()
         pygame.font.init()
         self._clock = pygame.time.Clock()
@@ -61,14 +62,17 @@ class HumanInterface(object):
             #     right_surface = pygame.surfarray.make_surface(image_right.swapaxes(0, 1))
             #     self._surface.blit(right_surface, ((1 - self._scale) * self._width, (1 - self._scale) * self._height))
 
-        self.draw_alert(f"IMU-based speed estimate: {velocity:.2f} m/s", (255,0,0), (self._width/5, self._height/5))
-        if pedestrian: 
-            self.draw_alert("Pedestrian Detected!", (255, 0, 0), (self._width/5, self._height/5*2))
+        for index, mess in enumerate(self.message):
+            self.draw_alert(mess, (255, index*50, index*50), (self._width/7, self._height/7+50*index))
 
-        self.draw_alert(f"Front Obstacle: {lidar_point}",
-                            (0,255,0),
-                            (self._width/5, self._height/5*3)
-                        )
+        # self.draw_alert(f"IMU-based speed estimate: {velocity:.2f} m/s", (255,0,0), (self._width/5, self._height/5))
+        # if pedestrian: 
+        #     self.draw_alert("Pedestrian Detected!", (255, 0, 0), (self._width/5, self._height/5*2))
+
+        # self.draw_alert(f"Front Obstacle: {lidar_point}",
+        #                     (0,255,0),
+        #                     (self._width/5, self._height/5*3)
+        #                 )
 
         # if lidar_point is not None:
         #     for point in lidar_point:
@@ -88,16 +92,13 @@ class HumanInterface(object):
         self._display.blit(surface, (0, 0))
         pygame.display.flip()
 
+    def set_message(self, message, category=-1):
+        if not category == -1: 
+            self.message[category] = message
+
     def draw_alert(self, message, color=(255, 0, 0), pos=(0,0)):
         text_surface = self._font.render(message, True, color)
         self._surface.blit(text_surface, pos)
-        # get screen solution and scale it in the middle
-        # Detect signs and take control (speed)
-        # Traffic light detection
-
-    def draw_point(self, coordinate, color=(255,0,0)):
-        text_surface = self._font.render("xx", True, color)
-        self._surface.blit(text_surface, (coordinate[0]+1, coordinate[1]+1))
 
     def _quit(self):
         pygame.quit()
