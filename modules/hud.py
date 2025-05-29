@@ -30,7 +30,7 @@ class HumanInterface(object):
                                                  pygame.HWSURFACE | pygame.DOUBLEBUF)
         pygame.display.set_caption("Driver Assistant Agent")
     
-    def run_interface(self, input_data, pedestrian=False, lidar_point=-1, velocity=0.0):
+    def run_interface(self, input_data):
         """
         Run the GUI
         """
@@ -42,28 +42,28 @@ class HumanInterface(object):
         if self.standalone:
             image_center = input_data['Center'][1]
             self._surface = pygame.surfarray.make_surface(image_center.swapaxes(0, 1))
-            # if self._left_mirror:
-            #     image_left = input_data['Left'][1]
-            #     left_surface = pygame.surfarray.make_surface(image_left.swapaxes(0, 1))
-            #     self._surface.blit(left_surface, (0, (1 - self._scale) * self._height))
-            # if self._right_mirror:
-            #     image_right = input_data['Right'][1]
-            #     right_surface = pygame.surfarray.make_surface(image_right.swapaxes(0, 1))
-            #     self._surface.blit(right_surface, ((1 - self._scale) * self._width, (1 - self._scale) * self._height))
+            if self._left_mirror:
+                image_left = input_data['Left'][1]
+                left_surface = pygame.surfarray.make_surface(image_left.swapaxes(0, 1))
+                self._surface.blit(left_surface, (0, (1 - self._scale) * self._height))
+            if self._right_mirror:
+                image_right = input_data['Right'][1]
+                right_surface = pygame.surfarray.make_surface(image_right.swapaxes(0, 1))
+                self._surface.blit(right_surface, ((1 - self._scale) * self._width, (1 - self._scale) * self._height))
         else:
             image_center = input_data['Center'][1][:, :, -2::-1]
             self._surface = pygame.surfarray.make_surface(image_center.swapaxes(0, 1))
-            # if self._left_mirror:
-            #     image_left = input_data['Left'][1][:, :, -2::-1]
-            #     left_surface = pygame.surfarray.make_surface(image_left.swapaxes(0, 1))
-            #     self._surface.blit(left_surface, (0, (1 - self._scale) * self._height))
-            # if self._right_mirror:
-            #     image_right = input_data['Right'][1][:, :, -2::-1]
-            #     right_surface = pygame.surfarray.make_surface(image_right.swapaxes(0, 1))
-            #     self._surface.blit(right_surface, ((1 - self._scale) * self._width, (1 - self._scale) * self._height))
+            if self._left_mirror:
+                image_left = input_data['Left'][1][:, :, -2::-1]
+                left_surface = pygame.surfarray.make_surface(image_left.swapaxes(0, 1))
+                self._surface.blit(left_surface, (0, (1 - self._scale) * self._height))
+            if self._right_mirror:
+                image_right = input_data['Right'][1][:, :, -2::-1]
+                right_surface = pygame.surfarray.make_surface(image_right.swapaxes(0, 1))
+                self._surface.blit(right_surface, ((1 - self._scale) * self._width, (1 - self._scale) * self._height))
 
         for index, mess in enumerate(self.message):
-            self.draw_alert(mess, (255, index*100, index*50), (self._width/7, self._height/7+50*index))
+            self.draw_alert(mess, (255, 255, index*120), (self._width/7, self._height/7+50*index))
 
         # self.draw_alert(f"IMU-based speed estimate: {velocity:.2f} m/s", (255,0,0), (self._width/5, self._height/5))
         # if pedestrian: 

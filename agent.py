@@ -216,7 +216,7 @@ class DriverAssistantAgent(AutonomousAgent):
                 # print(distance)
                 # x, y, z = map(float, closest_point[:3])
                 # point_location = carla.Location(x=x, y=y, z=z)  
-                self._hic.set_message(f"Front Obstacle: {distance}", 2)  
+                self._hic.set_message(f"Front Obstacle: {distance:.3f}", 2)  
                 # print(point_location)  
 
                 # lidar_transform = self._sensor_objects['LIDAR'].sensor.get_transform()
