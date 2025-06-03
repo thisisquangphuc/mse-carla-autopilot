@@ -294,24 +294,30 @@ class DriverAssistantAgent(AutonomousAgent):
         
 
     def calculate_velocity(self, imu_sensor, timestamp):
-        if imu_sensor.accelerometer is not None:
-            accel = imu_sensor.accelerometer  # carla.Vector3D
-            if self._prev_timestamp is not None:
-                delta_time = timestamp - self._prev_timestamp
+        """
+        Estimate vehicle velocity from IMU acceleration data in the leaderboard stream format.
+        `imu_sensor` is a numpy array with [accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z]
+        """
+        # Extract acceleration from IMU numpy array
+        accel_data = imu_sensor  # Already a numpy array
+        accel_x = accel_data[0]  # Forward axis in CARLA coordinate system
 
-                accel_forward = accel[0]
-                
-                self.estimated_velocity += accel_forward * delta_time
-                if abs(accel_forward) < 0.05:
+        if self._prev_timestamp is not None:
+            delta_time = timestamp - self._prev_timestamp
+            if delta_time > 0:
+                # Forward velocity estimate
+                self.estimated_velocity += accel_x * delta_time
+
+                if abs(accel_x) < 0.05:
                     if self.estimated_velocity < 0.5:
+                        # self.estimated_velocity = 0.0
                         pass  # velocity stays low
                     else:
                         self.estimated_velocity *= self.velocity_ratio
-
-                # Clamp velocity to reasonable values
+                # Clamp velocity to reasonable valuesAdd commentMore actions
                 self.estimated_velocity = max(0.0, min(self.estimated_velocity, 100.0))
-
         self._prev_timestamp = timestamp
+
 
     def inverse_transform(location, reference_transform):
         """
